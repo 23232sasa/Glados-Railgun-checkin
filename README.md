@@ -1,3 +1,18 @@
+## 当前账户配置（2026-09-13更新）
+
+当前工作流每天北京时间08:00运行，也支持 Actions → GLaDOS daily check-in → Run workflow。GitHub调度可能延迟；此仓库为公开仓库，长期无活动时定时任务可能被停用，请定期检查 Actions。
+
+1. Settings → Secrets and variables → Actions → Secrets：新增 `GLADOS_COOKIE`，值为登录会话Cookie。兼容原有 `GLADOS_COOKIES`，两者同时存在时优先前者。不要将Cookie提交到代码或日志。
+2. 同页面 Variables：新增 `GLADOS_DOMAIN`，填写获取Cookie时地址栏的准确域名，不带 https:// 或路径。目前允许 glados.cloud、glados.rocks、glados.space、railgun.info。不能凭猜测选择；其他域名需先核实归属再修改代码。
+3. 可选变量 `GLADOS_EXCHANGE_PLAN`：plan100、plan200 或 plan500，默认 plan500。按既有接口方案，分别在积分至少100、200、500时尝试兑换。实际兑换结果与权益以服务端为准。
+4. 在 Actions 手动运行一次。签到成功或已签到后，达到门槛才兑换；签到/兑换失败会令任务失败。此版本不执行第三方推送、日志自动删除或保活操作。
+
+脚本只向指定域名发送Cookie，拒绝HTTP跳转。更换域名必须使用该域名对应的Cookie。Cookie过期需自行更新。重新登录不保证旧会话必然撤销，请使用平台支持的会话撤销方式。
+
+以下为上游原始说明；若有冲突，以本节及当前工作流为准。
+
+---
+
 # Glados自动签到
 
 ## 食用方式：
