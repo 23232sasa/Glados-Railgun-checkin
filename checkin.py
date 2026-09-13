@@ -121,8 +121,15 @@ class Config:
         self.exchange_plan: str = self.DEFAULT_EXCHANGE_PLAN
         self.verbose: bool = self.DEFAULT_VERBOSE
         self._load_config()
-        domain = os.environ.get("GLADOS_DOMAIN", "").strip().lower()
-        if domain not in {"glados.cloud", "glados.rocks", "glados.space", "railgun.info"}:
+        raw_domain = os.environ.get("GLADOS_DOMAIN", "").strip().lower()
+        # Accept the console URL, but send credentials only to an approved HTTPS host.
+        from urllib.parse import urlsplit
+        parsed = urlsplit(raw_domain if "://" in raw_domain else "https://" + raw_domain)
+        domain = parsed.hostname
+        if (parsed.scheme != "https" or parsed.username is not None
+                or parsed.password is not None or parsed.port not in (None, 443)):
+            raise ValueError("GLADOS_DOMAIN must be an HTTPS hostname or console URL.")
+        if domain not in {"glados.network", "glados.cloud", "glados.rocks", "glados.space", "railgun.info"}:
             raise ValueError("Set GLADOS_DOMAIN to the exact hostname where you obtained the Cookie.")
         self.DOMAINS = [domain]
 
