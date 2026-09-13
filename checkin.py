@@ -106,7 +106,7 @@ class Config:
     DEFAULT_VERBOSE = False
 
     """默认域名"""
-    DOMAINS = ["glados.cloud", "railgun.info"]
+    DOMAINS = []  # Set explicitly: never send a Cookie to multiple domains.
 
     """兑换计划列表"""
     EXCHANGE_PLANS = {
@@ -121,11 +121,15 @@ class Config:
         self.exchange_plan: str = self.DEFAULT_EXCHANGE_PLAN
         self.verbose: bool = self.DEFAULT_VERBOSE
         self._load_config()
+        domain = os.environ.get("GLADOS_DOMAIN", "").strip().lower()
+        if domain not in {"glados.cloud", "glados.rocks", "glados.space", "railgun.info"}:
+            raise ValueError("Set GLADOS_DOMAIN to the exact hostname where you obtained the Cookie.")
+        self.DOMAINS = [domain]
 
     def _load_config(self) -> None:
         """加载配置"""
         push_key_env: Optional[str] = os.environ.get(self.ENV_PUSH_KEY)
-        raw_cookies_env: Optional[str] = os.environ.get(self.ENV_COOKIES)
+        raw_cookies_env: Optional[str] = (os.environ.get("GLADOS_COOKIE") or os.environ.get(self.ENV_COOKIES))
         exchange_plan_env: Optional[str] = os.environ.get(self.ENV_EXCHANGE_PLAN)
         verbose_env: Optional[str] = os.environ.get(self.ENV_VERBOSE)
 
@@ -238,19 +242,19 @@ class API:
 
         try:
             if method.upper() == "POST":
-                response = self.session.post(url, headers=session_headers, data=data, timeout=(60, 120))
+                response = self.session.post(url, headers=session_headers, data=data, timeout=(15, 30), allow_redirects=False)
             elif method.upper() == "GET":
-                response = self.session.get(url, headers=session_headers, timeout=(60, 120))
+                response = self.session.get(url, headers=session_headers, timeout=(15, 30), allow_redirects=False)
             else:
                 self._log("error", LogEmoji.ERROR, f"不支持的 HTTP 方法: {method}", force=True)
                 return None
 
-            if not response.ok:
-                self._log("warning", LogEmoji.WARNING, f"向 {url} 发起的请求失败，状态码 {response.status_code}。响应内容: {response.text}", force=True)
+            if response.status_code != 200:
+                self._log("warning", LogEmoji.WARNING, f"向 {url} 发起的请求失败，状态码 {response.status_code}", force=True)
                 return None
             return response
         except requests.exceptions.RequestException as e:
-            self._log("error", LogEmoji.ERROR, f"向 {url} 发起请求时发生网络错误: {e}", force=True)
+            self._log("error", LogEmoji.ERROR, f"网络请求失败: {type(e).__name__}", force=True)
             return None
 
     def _get_checkin_data(self) -> Dict[str, str]:
@@ -466,6 +470,7 @@ class Checker:
             checkin_result = api.checkin(cookie)
             result.status = checkin_result["status"]
             result.code = checkin_result.get("code", CheckinStatus.FAILURE)
+            result.points = str(checkin_result.get("points", "0"))
 
             # 3. 获取积分
             self._log(cookie_idx, domain, LogEmoji.POINTS, "查询总积分")
@@ -480,7 +485,13 @@ class Checker:
                 LogEmoji.EXCHANGE,
                 f"开始兑换 {self.config.exchange_plan} (需要 {required_points} 积分)",
             )
-            result.exchange = api.exchange(cookie, self.config.exchange_plan, required_points)
+            if result.code in (CheckinStatus.SUCCESS, CheckinStatus.REPEAT) and points_num >= required_points:
+                result.exchange = api.exchange(cookie, self.config.exchange_plan, required_points)
+                if not result.exchange.startswith("兑换成功"):
+                    result.code = CheckinStatus.FAILURE
+                    result.status = "签到完成，但积分兑换失败"
+            else:
+                result.exchange = "积分不足或签到失败，未兑换"
 
         return result
 
@@ -528,7 +539,7 @@ def main():
 
         if not config.cookies_list:
             logger.error(f"{LogEmoji.ERROR} 未找到有效的 Cookie, 退出程序。")
-            title, content = "# 未找到 cookies!", ""
+            raise ValueError("Missing GLADOS_COOKIE / GLADOS_COOKIES secret")
         else:
             # 2. 执行签到
             logger.info(f"{LogEmoji.START} 步骤 2: 执行签到")
@@ -542,13 +553,15 @@ def main():
 
     except Exception as e:
         logger.error(f"{LogEmoji.ERROR} 主程序执行过程中发生未预期的错误: {e}")
-        title, content, log_content = "# 脚本执行出错", str(e), str(e)
+        raise SystemExit(1)
 
     # 4. 发送推送
     logger.info(f"{LogEmoji.START} 步骤 4: 发送推送")
     push_service = PushService(config if "config" in locals() else "")
     push_service.send(title, content)
     logger.info(f"{LogEmoji.END} 签到完成")
+    if any(r.code == CheckinStatus.FAILURE for r in checker.results):
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":
