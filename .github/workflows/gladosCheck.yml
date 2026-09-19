@@ -1,13 +1,17 @@
 name: GLaDOS daily check-in
+
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 */12 * * *'
+    - cron: '0 0 * * *'
+
 permissions:
   contents: read
+
 concurrency:
   group: glados-checkin
   cancel-in-progress: false
+
 jobs:
   checkin:
     runs-on: ubuntu-latest
