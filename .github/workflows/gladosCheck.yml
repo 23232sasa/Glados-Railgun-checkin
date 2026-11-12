@@ -24,7 +24,7 @@ jobs:
         with:
           python-version: '3.13'
       - name: Install dependencies
-        run: python -m pip install requests pypushdeer
+        run: python -m pip install -r requirements.txt
       - name: Check in and redeem eligible points
         run: python checkin.py
         env:
@@ -32,4 +32,4 @@ jobs:
           GLADOS_COOKIES: ${{ secrets.GLADOS_COOKIES }}
           GLADOS_DOMAIN: ${{ vars.GLADOS_DOMAIN }}
           GLADOS_EXCHANGE_PLAN: ${{ vars.GLADOS_EXCHANGE_PLAN || secrets.GLADOS_EXCHANGE_PLAN || 'plan500' }}
-          GLADOS_VERBOSE: 'false'
+          GLADOS_VERBOSE: 'true'
