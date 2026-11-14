@@ -1297,6 +1297,18 @@ def main() -> None:
             logger.info(f"{LogEmoji.START} 步骤 2: 执行签到")
             report = CheckinRunner(config).run()
 
+            # Fail CI when any account actually failed check-in.
+            failed_count = sum(
+                entry.result.code is CheckinStatus.FAILURE
+                for entry in report.entries
+            )
+            if failed_count:
+                exit_code = 1
+                logger.error(
+                    f"{LogEmoji.ERROR} 实际签到失败：{failed_count}/{len(report.entries)} 个账号；"
+                    "GitHub Actions 将标记为失败。"
+                )
+
             logger.info(f"{LogEmoji.START} 步骤 3: 生成报告")
             logger.info(f"\n{LogEmoji.END} ========== 签到总结 ==========\n{report.title}\n{report.render()}")
 
